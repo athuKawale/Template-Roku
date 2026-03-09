@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="AppController" extends="BaseGroup">
+    <script type="text/brightscript" uri="pkg:/components/AppController.brs" />
+    <children>
+        <!-- This container will hold our dynamically swapped screens -->
+        <Group id="screenContainer" />
+    </children>
+    <interface>
+        <!-- Deep linking args -->
+        <field id="launchArgs" type="assocarray" onChange="onLaunchArgsChange" />
+        
+        <!-- Navigation Interface -->
+        <field id="pushScreen" type="node" onChange="onPushScreen" />
+        <field id="popScreen" type="bool" onChange="onPopScreen" />
+    </interface>
+</component>

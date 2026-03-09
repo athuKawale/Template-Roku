@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="HomeScreen" extends="BaseGroup">
+    <script type="text/brightscript" uri="pkg:/components/pages/home/HomeScreen.brs" />
+    <script type="text/brightscript" uri="pkg:/components/shared/TaskOrchestrator.brs" />
+    <interface>
+        <!-- Signal to AppController what channel was picked -->
+        <field id="selectedChannel" type="assocarray" />
+    </interface>
+    <children>
+        <Label id="statusLabel" text="Standard Project Loading..." translation="[100, 100]" />
+    </children>
+</component>

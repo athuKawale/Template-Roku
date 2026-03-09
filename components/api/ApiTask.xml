@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="ApiTask" extends="Task">
+    <script type="text/brightscript" uri="pkg:/components/api/apiManager.brs" />
+    <script type="text/brightscript" uri="pkg:/source/constants.brs" />
+    <script type="text/brightscript" uri="pkg:/components/api/ApiTask.brs" />
+    <interface>
+        <!-- INPUT: Request Type (CHANNEL_LIST or GET_LIVE_URL) -->
+        <field id="request" type="assocarray" />
+        <!-- OUTPUT: Result data -->
+        <field id="response" type="assocarray" />
+    </interface>
+</component>
