@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component name="MainScene" extends="Scene">
     <script type="text/brightscript" uri="pkg:/components/MainScene.brs" />
-    <children>
-        <!-- The AppController handles all views -->
-        <AppController id="appControll    <interface>
+
+    <interface>
         <field id="launchArgs" type="assocarray" onChange="onLaunchArgsChange" />
     </interface>
+
+    <children>
+        <!-- The AppController handles all views -->
+        <AppController id="appController" />
+    </children>
 </component>
