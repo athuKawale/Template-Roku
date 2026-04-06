@@ -49,9 +49,6 @@ function GetConstants() as Object
                 "RESOLUTION_FAILED": "Playback resolution failed.",
                 "RESOLVER_EMPTY_CONTENT": "Resolver returned empty content.",
                 "UNKNOWN_ERROR": "Unexpected error occurred.",
-                "SMOKE_STARTED": "Running startup smoke checks...",
-                "SMOKE_PASSED": "Startup smoke checks passed.",
-                "SMOKE_FAILED_PREFIX": "Startup smoke checks failed: ",
                 "STARTUP_CONFIG_FAILED_PREFIX": "Startup configuration failed: "
             }
         },
@@ -66,11 +63,6 @@ function GetConstants() as Object
                 "LOAD_FEED": "LOAD_FEED",
                 "RESOLVE_CONTENT": "RESOLVE_CONTENT",
                 "EXECUTE_OPERATION": "EXECUTE_OPERATION"
-            },
-            "STARTUP": {
-                "RUN_SMOKE_TESTS": false,
-                "RUN_ALL_PROFILES": false,
-                "FAIL_ON_SMOKE_ERROR": false
             }
         },
         "PROFILES": GetConfigProfiles()
@@ -431,10 +423,6 @@ function ValidateAppConfig(config as Object) as Object
     }
 end function
 
-function GetSmokeProfiles() as Object
-    return GetConstants().PROFILES
-end function
-
 function GetConfigProfiles() as Object
     return {
         "graphql_sample": {
@@ -576,47 +564,6 @@ function GetConfigProfiles() as Object
                         "RESOLVER_URL_PATH": "data[0].contentUrl"
                     }
                 }
-            },
-            "SMOKE": {
-                "FEED_MOCKS": {
-                    "feed_live": {
-                        "data": {
-                            "feed": {
-                                "items": [
-                                    {
-                                        "id": "g-live-1",
-                                        "title": "GraphQL Live Sample",
-                                        "type": "live",
-                                        "images": [{ "url": "https://cdn.example.com/g-live.jpg" }],
-                                        "playback": { "url": "", "format": "" },
-                                        "resolver": { "strategy": "byId", "id": "g-live-1" }
-                                    }
-                                ]
-                            }
-                        }
-                    }
-                },
-                "RESOLVER_MOCKS": {
-                    "resolve_by_id": {
-                        "data": {
-                            "playback": {
-                                "url": "https://cdn.example.com/graph/live-from-id.m3u8",
-                                "format": "hls"
-                            }
-                        }
-                    },
-                    "resolve_lookup_by_id": {
-                        "data": [{ "contentUrl": "https://resolver.example.com/graph/live/g-live-1" }]
-                    },
-                    "resolve_by_url": {
-                        "data": {
-                            "playback": {
-                                "url": "https://cdn.example.com/graph/live.m3u8",
-                                "format": "hls"
-                            }
-                        }
-                    }
-                }
             }
         },
         "rest_sample": {
@@ -736,34 +683,6 @@ function GetConfigProfiles() as Object
                     "EXTRACT": {
                         "PLAYBACK_URL_PATH": "data.url",
                         "PLAYBACK_FORMAT_PATH": "data.format"
-                    }
-                }
-            },
-            "SMOKE": {
-                "FEED_MOCKS": {
-                    "feed_live_rest": {
-                        "data": {
-                            "items": [
-                                {
-                                    "id": "r-live-1",
-                                    "title": "REST Live Sample",
-                                    "kind": "live",
-                                    "thumbnail": "https://cdn.example.com/r-live.jpg",
-                                    "resolver": {
-                                        "strategy": "byId",
-                                        "id": "r-live-1"
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                },
-                "RESOLVER_MOCKS": {
-                    "resolve_rest_by_id": {
-                        "data": {
-                            "url": "https://cdn.example.com/rest/live.m3u8",
-                            "format": "hls"
-                        }
                     }
                 }
             }
@@ -887,45 +806,6 @@ function GetConfigProfiles() as Object
                         "DRM_HEADERS_PATH": "data.playback.drm.headers"
                     }
                 }
-            },
-            "SMOKE": {
-                "FEED_MOCKS": {
-                    "feed_live_graphql": {
-                        "data": {
-                            "liveRail": {
-                                "items": [
-                                    {
-                                        "id": "m-live-1",
-                                        "title": "Mixed Live",
-                                        "type": "live",
-                                        "thumb": { "url": "https://cdn.example.com/m-live.jpg" },
-                                        "resolver": {
-                                            "strategy": "multiStep",
-                                            "contentId": "m-live-1",
-                                            "pipeline": [
-                                                { "OPERATION": "resolve_mixed_lookup" },
-                                                { "OPERATION": "resolve_mixed_by_url" }
-                                            ]
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    }
-                },
-                "RESOLVER_MOCKS": {
-                    "resolve_mixed_lookup": {
-                        "data": [{ "contentUrl": "https://resolver.example.com/mixed/m-live-1" }]
-                    },
-                    "resolve_mixed_by_url": {
-                        "data": {
-                            "playback": {
-                                "url": "https://cdn.example.com/mixed/live.mpd",
-                                "format": "dash"
-                            }
-                        }
-                    }
-                }
             }
         },
         "root_array_sample": {
@@ -1021,39 +901,6 @@ function GetConfigProfiles() as Object
                         "PLAYBACK_FORMAT_PATH": "data.playback.format"
                     }
                 }
-            },
-            "SMOKE": {
-                "FEED_MOCKS": {
-                    "feed_root_array": [
-                        {
-                            "id": "root-1",
-                            "title": "Root Array Featured",
-                            "type": "featured",
-                            "thumb": "https://cdn.example.com/root-array.jpg",
-                            "resolver": {
-                                "strategy": "multiStep",
-                                "id": "root-1",
-                                "pipeline": [
-                                    { "OPERATION": "resolve_root_lookup_by_id" },
-                                    { "OPERATION": "resolve_root_by_url" }
-                                ]
-                            }
-                        }
-                    ]
-                },
-                "RESOLVER_MOCKS": {
-                    "resolve_root_lookup_by_id": {
-                        "data": [{ "contentUrl": "https://resolver.example.com/root/root-1" }]
-                    },
-                    "resolve_root_by_url": {
-                        "data": {
-                            "playback": {
-                                "url": "https://cdn.example.com/root/root-1.m3u8",
-                                "format": "hls"
-                            }
-                        }
-                    }
-                }
             }
         },
         "feedless_single_operation_sample": {
@@ -1141,30 +988,6 @@ function GetConfigProfiles() as Object
                     "EXTRACT": {
                         "PLAYBACK_URL_PATH": "data.url",
                         "PLAYBACK_FORMAT_PATH": "data.format"
-                    }
-                }
-            },
-            "SMOKE": {
-                "FEED_MOCKS": {
-                    "single_featured_operation": [
-                        {
-                            "id": "single-1",
-                            "title": "Single Operation Featured",
-                            "type": "featured",
-                            "thumb": "https://cdn.example.com/single-1.jpg",
-                            "playback": {
-                                "url": "https://cdn.example.com/single-1.mpd",
-                                "format": "dash"
-                            }
-                        }
-                    ]
-                },
-                "RESOLVER_MOCKS": {
-                    "single_resolve_by_id": {
-                        "data": {
-                            "url": "https://cdn.example.com/single-fallback.m3u8",
-                            "format": "hls"
-                        }
                     }
                 }
             }
