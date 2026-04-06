@@ -1,4 +1,7 @@
 sub init()
+    m.config = GetAppConfig()
+    app = getAssocValue(m.config, "APP")
+    m.screens = getAssocValue(app, "SCREENS")
     m.screenContainer = m.top.findNode("screenContainer")
     m.screenStack = []
     
@@ -7,14 +10,14 @@ sub init()
 end sub
 
 sub showHomeScreen()
-    homeScreen = CreateObject("roSGNode", "HomeScreen")
+    homeScreen = CreateObject("roSGNode", getScreenName("HOME", "HomeScreen"))
     homeScreen.observeField("selectedContent", "onContentSelected")
     pushScreen(homeScreen)
 end sub
 
 sub onContentSelected(event as Object)
     contentItem = event.getData()
-    playerScreen = CreateObject("roSGNode", "PlayerScreen")
+    playerScreen = CreateObject("roSGNode", getScreenName("PLAYER", "PlayerScreen"))
     playerScreen.contentItem = contentItem
     pushScreen(playerScreen)
 end sub
@@ -59,10 +62,9 @@ end sub
 
 sub onLaunchArgsChange()
     args = m.top.launchArgs
-    ? "AppController: Received Launch Args: "; args
     ' Handle launch routing here (for example, auto-opening an item)
     if args <> invalid and args.targetId <> invalid
-        ? "AppController: Launch targetId: "; args.targetId
+        ? "Launch targetId: "; args.targetId
     end if
 end sub
 
@@ -77,4 +79,24 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
         end if
     end if
     return false
+end function
+
+function getScreenName(key as String, fallback as String) as String
+    if m.screens = invalid then return fallback
+    return getStringValue(m.screens, key, fallback)
+end function
+
+function getAssocValue(obj as Dynamic, key as String) as Dynamic
+    aa = GetInterface(obj, "ifAssociativeArray")
+    if aa = invalid then return invalid
+    if aa.DoesExist(key) = false then return invalid
+    return aa.Lookup(key)
+end function
+
+function getStringValue(obj as Dynamic, key as String, fallback as String) as String
+    value = getAssocValue(obj, key)
+    if value = invalid then return fallback
+    txt = value.tostr()
+    if txt = "" then return fallback
+    return txt
 end function

@@ -6,8 +6,10 @@
     <interface>
         <!-- Signal to AppController what content item was picked -->
         <field id="selectedContent" type="assocarray" />
+        <!-- Expose loaded rails for future list/grid UI -->
+        <field id="railsData" type="assocarray" />
     </interface>
     <children>
-        <Label id="statusLabel" text="Loading content..." translation="[100, 100]" />
+        <Label id="statusLabel" text="" translation="[100, 100]" />
     </children>
 </component>

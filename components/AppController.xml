@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component name="AppController" extends="BaseGroup">
     <script type="text/brightscript" uri="pkg:/components/AppController.brs" />
+    <script type="text/brightscript" uri="pkg:/source/constants.brs" />
     <children>
         <!-- This container will hold our dynamically swapped screens -->
         <Group id="screenContainer" />

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component name="PlayerScreen" extends="BaseGroup">
     <script type="text/brightscript" uri="pkg:/components/pages/player/PlayerScreen.brs" />
+    <script type="text/brightscript" uri="pkg:/components/api/apiManager.brs" />
+    <script type="text/brightscript" uri="pkg:/source/constants.brs" />
     <interface>
         <!-- Receive content data to play -->
         <field id="contentItem" type="assocarray" onChange="onDataChange" />
