@@ -3,11 +3,11 @@ sub init()
 end sub
 
 sub onDataChange()
-    data = m.top.channelData
+    data = m.top.contentItem
     if data <> invalid
         content = CreateObject("roSGNode", "ContentNode")
-        content.url = data.streaming_url
-        content.title = data.channel_name
+        content.url = data.playbackUrl
+        content.title = data.title
         content.streamformat = "hls"
         
         m.videoPlayer.content = content

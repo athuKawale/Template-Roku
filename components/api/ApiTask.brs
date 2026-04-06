@@ -9,7 +9,12 @@ sub runRequest()
     constants = GetConstants()
     ut = ApiManager_CreateUrlTransfer("")
     
-    if request.type = "CHANNEL_LIST"
+    if request.type = "FETCH_CONTENT_LIST"
+        if constants.API.BASE_URL = invalid or constants.API.BASE_URL = ""
+            m.top.response = { "success": false, "error": "API base URL is not configured." }
+            return
+        end if
+
         ut.SetUrl(constants.API.BASE_URL)
         ut.AddHeader("Content-Type", "application/json")
         
@@ -17,8 +22,8 @@ sub runRequest()
         ut.SetPort(port)
         
         payload = {
-            query: constants.API.CHANNEL_LIST_QUERY,
-            variables: constants.API.CHANNEL_LIST_VARIABLES
+            query: constants.API.CONTENT_LIST_QUERY,
+            variables: constants.API.CONTENT_LIST_VARIABLES
         }
         
         if ut.AsyncPostFromString(FormatJson(payload))
@@ -26,10 +31,11 @@ sub runRequest()
             if type(msg) = "roUrlEvent"
                 if msg.getResponseCode() = 200
                     json = ApiManager_ParseResponse(msg.GetString())
-                    if json <> invalid and json.data <> invalid and json.data.ctvChannelList <> invalid
-                        m.top.response = { "success": true, "data": json.data.ctvChannelList.data }
+                    data = ApiManager_GetNestedValue(json, constants.API.CONTENT_LIST_PATH)
+                    if data <> invalid and GetInterface(data, "ifArray") <> invalid
+                        m.top.response = { "success": true, "data": data }
                     else
-                        m.top.response = { "success": false, "error": "Invalid JSON structure" }
+                        m.top.response = { "success": false, "error": "Invalid content list response structure" }
                     end if
                 else
                     m.top.response = { "success": false, "error": "API Error: " + msg.getResponseCode().tostr() }
@@ -41,7 +47,12 @@ sub runRequest()
             m.top.response = { "success": false, "error": "Failed to start API request" }
         end if
 
-    else if request.type = "GET_LIVE_URL"
+    else if request.type = "RESOLVE_PLAYBACK_URL"
+        if request.url = invalid or request.url = ""
+            m.top.response = { "success": false, "error": "Missing playback resolver URL." }
+            return
+        end if
+
         port = CreateObject("roMessagePort")
         ut.SetPort(port)
         ut.SetUrl(request.url)
@@ -51,19 +62,20 @@ sub runRequest()
             if type(msg) = "roUrlEvent"
                 if msg.getResponseCode() = 200
                     json = ApiManager_ParseResponse(msg.GetString())
-                    if json <> invalid and json.hls <> invalid
-                        m.top.response = { "success": true, "url": json.hls }
+                    resolvedUrl = ApiManager_GetMappedValue(json, constants.API.FIELDS.STREAM_RESPONSE_URL)
+                    if resolvedUrl <> invalid and resolvedUrl <> ""
+                        m.top.response = { "success": true, "url": resolvedUrl }
                     else
-                        m.top.response = { "success": false, "error": "Invalid Live URL JSON" }
+                        m.top.response = { "success": false, "error": "Invalid playback URL response" }
                     end if
                 else
-                    m.top.response = { "success": false, "error": "Live URL Error: " + msg.getResponseCode().tostr() }
+                    m.top.response = { "success": false, "error": "Playback URL Error: " + msg.getResponseCode().tostr() }
                 end if
             else
-                m.top.response = { "success": false, "error": "Live URL Timeout" }
+                m.top.response = { "success": false, "error": "Playback URL Timeout" }
             end if
         else
-            m.top.response = { "success": false, "error": "Failed to start Live URL request" }
+            m.top.response = { "success": false, "error": "Failed to start playback URL request" }
         end if
     end if
 end sub

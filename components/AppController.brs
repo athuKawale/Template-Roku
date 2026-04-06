@@ -8,14 +8,14 @@ end sub
 
 sub showHomeScreen()
     homeScreen = CreateObject("roSGNode", "HomeScreen")
-    homeScreen.observeField("selectedChannel", "onChannelSelected")
+    homeScreen.observeField("selectedContent", "onContentSelected")
     pushScreen(homeScreen)
 end sub
 
-sub onChannelSelected(event as Object)
-    channel = event.getData()
+sub onContentSelected(event as Object)
+    contentItem = event.getData()
     playerScreen = CreateObject("roSGNode", "PlayerScreen")
-    playerScreen.channelData = channel
+    playerScreen.contentItem = contentItem
     pushScreen(playerScreen)
 end sub
 
@@ -60,10 +60,9 @@ end sub
 sub onLaunchArgsChange()
     args = m.top.launchArgs
     ? "AppController: Received Launch Args: "; args
-    ' Handle deep linking logic here (e.g., if args.contentId exists)
-    if args <> invalid and args.contentId <> invalid
-        ? "AppController: Deep linking to contentId: "; args.contentId
-        ' Example: auto-play a specific channel or navigate to player
+    ' Handle launch routing here (for example, auto-opening an item)
+    if args <> invalid and args.targetId <> invalid
+        ? "AppController: Launch targetId: "; args.targetId
     end if
 end sub
 

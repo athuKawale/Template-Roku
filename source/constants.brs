@@ -1,12 +1,28 @@
 function GetConstants() as Object
     return {
+        "APP": {
+            "TITLE": "Template Roku",
+            "LOADING_TEXT": "Loading content...",
+            "EMPTY_TEXT": "No content items were returned.",
+            "CONFIG_HINT": "Configure API.BASE_URL, query, path, and field mapping in source/constants.brs.",
+            "RESOLVING_TEXT_PREFIX": "Resolving playback URL for ",
+            "PLAYING_TEXT_PREFIX": "Starting playback for ",
+            "UNPLAYABLE_TEXT": "The selected item has no playable URL."
+        },
         "API": {
-            "BASE_URL": "https://prd-ctv-gql.nw18.com/",
-            "CHANNEL_LIST_QUERY": "query CtvChannelList($apiRequest: CtvChannelListinput) { ctvChannelList(apiRequest: $apiRequest) { data { language channel_name streaming_url } } }",
-            "CHANNEL_LIST_VARIABLES": "{""apiRequest"": {""langName"": ""en-in""}}"
+            "BASE_URL": "",
+            "CONTENT_LIST_QUERY": "query ContentList { contentList { items { title playbackUrl resolverUrl } } }",
+            "CONTENT_LIST_VARIABLES": {},
+            "CONTENT_LIST_PATH": ["data", "contentList", "items"],
+            "FIELDS": {
+                "TITLE": "title",
+                "PLAYBACK_URL": "playbackUrl",
+                "RESOLVER_URL": "resolverUrl",
+                "STREAM_RESPONSE_URL": "playbackUrl"
+            }
         },
         "COLORS": {
-            "PRIMARY": "#EB1D24",
+            "PRIMARY": "#2D6CDF",
             "BACKGROUND": "#000000",
             "TEXT": "#FFFFFF"
         },
