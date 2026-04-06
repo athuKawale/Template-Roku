@@ -49,19 +49,14 @@ function LoadFeed(profile as Object, defaults as Object, request as Object) as O
         "feedKey": feed.KEY,
         "feedType": GetStringValue(feed, "TYPE", "content")
     })
+    context = BuildTemplateContext(context, GetAssocValue(request, "content"))
 
     opResult = ExecuteOperation(profile, defaults, operationKey, operation, context, "feed-loader")
     if opResult.success = false then return opResult
 
-    itemsPath = GetStringValue(GetAssocValue(operation, "EXTRACT"), "ITEMS_PATH", "")
-    items = ApiManager_GetByPath(opResult.data.body, itemsPath)
-    if items = invalid
-        return ErrorResult("FEED_ITEMS_MISSING", false, "feed-loader", { "itemsPath": itemsPath, "feedKey": feedKey })
-    end if
-
-    if GetInterface(items, "ifArray") = invalid
-        items = [items]
-    end if
+    itemsResult = ExtractItemsForOperation(operation, opResult.data.body, "feed-loader", { "feedKey": feedKey })
+    if itemsResult.success = false then return itemsResult
+    items = itemsResult.data.items
 
     normalizedItems = []
     for each rawItem in items
@@ -82,7 +77,7 @@ function ResolveContent(profile as Object, defaults as Object, request as Object
         return ErrorResult("CONTENT_MISSING", false, "resolver")
     end if
 
-    context = BuildResolverContext(content, GetAssocValue(request, "context"))
+    context = BuildTemplateContext(GetAssocValue(request, "context"), content)
     resolver = GetAssocValue(content, "resolver")
     playback = GetAssocValue(content, "playback")
 
@@ -138,7 +133,7 @@ function ResolveContent(profile as Object, defaults as Object, request as Object
             stepResult = ResolveWithOperation(profile, defaults, stepKey, workingContent, workingContext, requirePlayback)
             if stepResult.success = false then return stepResult
             workingContent = stepResult.data.content
-            workingContext = BuildResolverContext(workingContent, workingContext)
+            workingContext = BuildTemplateContext(workingContext, workingContent)
             stepIndex = stepIndex + 1
         end for
 
@@ -188,8 +183,38 @@ function ExecuteOperationRequest(profile as Object, defaults as Object, request 
         return ErrorResult("OPERATION_NOT_FOUND", false, "operation-exec", { "operationKey": operationKey })
     end if
 
-    context = GetAssocValue(request, "context")
-    return ExecuteOperation(profile, defaults, operationKey, operation, context, "operation-exec")
+    context = BuildTemplateContext(GetAssocValue(request, "context"), GetAssocValue(request, "content"))
+    opResult = ExecuteOperation(profile, defaults, operationKey, operation, context, "operation-exec")
+    if opResult.success = false then return opResult
+
+    normalizeItems = GetBoolValue(request, "normalizeItems", false)
+    if normalizeItems = false
+        return opResult
+    end if
+
+    feedMeta = {
+        "KEY": GetStringValue(request, "feedKey", "single_operation"),
+        "TITLE": GetStringValue(request, "feedTitle", "Single Operation"),
+        "TYPE": GetStringValue(request, "feedType", "content")
+    }
+
+    itemsResult = ExtractItemsForOperation(operation, opResult.data.body, "operation-exec", { "operationKey": operationKey })
+    if itemsResult.success = false then return itemsResult
+    items = itemsResult.data.items
+
+    normalizedItems = []
+    for each rawItem in items
+        normalizedItems.push(NormalizeContentItem(rawItem, profile, feedMeta))
+    end for
+
+    return ApiManager_ResultSuccess({
+        "operationKey": operationKey,
+        "feedKey": feedMeta.KEY,
+        "feedTitle": feedMeta.TITLE,
+        "feedType": feedMeta.TYPE,
+        "items": normalizedItems,
+        "operationData": opResult.data
+    }, "operation-exec")
 end function
 
 function ExecuteOperation(profile as Object, defaults as Object, operationKey as String, operation as Object, context as Object, source as String) as Object
@@ -247,6 +272,9 @@ function ExecuteSingleHttpRequest(resolvedRequest as Object, source as String) a
     end if
 
     method = UCase(GetStringValue(resolvedRequest, "method", "GET"))
+    if IsSupportedHttpMethod(method) = false
+        return ErrorResult("HTTP_METHOD_UNSUPPORTED", false, source, { "method": method })
+    end if
     timeoutMs = Int(GetNumberValue(resolvedRequest, "timeoutMs", 10000))
     if timeoutMs <= 0 then timeoutMs = 10000
 
@@ -271,18 +299,13 @@ function ExecuteSingleHttpRequest(resolvedRequest as Object, source as String) a
     started = false
     if method = "GET"
         started = ut.AsyncGetToString()
+    else if method = "DELETE"
+        ut.SetRequest(method)
+        started = ut.AsyncPostFromString("")
     else
         ut.SetRequest(method)
         body = GetValueOrDefault(resolvedRequest, "body", invalid)
-        bodyString = ""
-        if body <> invalid
-            bodyType = LCase(type(body))
-            if bodyType = "string" or bodyType = "rostring"
-                bodyString = body.tostr()
-            else
-                bodyString = FormatJson(body)
-            end if
-        end if
+        bodyString = ToRequestBodyString(body)
         started = ut.AsyncPostFromString(bodyString)
     end if
 
@@ -454,13 +477,93 @@ function ApplyResolverExtract(content as Object, operation as Object, payload as
 end function
 
 function BuildResolverContext(content as Object, extraContext as Dynamic) as Object
-    base = ApiManager_MergeAssoc(extraContext, {})
-    base["contentId"] = GetStringValue(content, "id", "")
-    base["title"] = GetStringValue(content, "title", "")
-    base["resolverUrl"] = GetStringValue(GetAssocValue(content, "resolver"), "url", "")
-    base["resolverId"] = GetStringValue(GetAssocValue(content, "resolver"), "id", "")
-    base["playbackUrl"] = GetStringValue(GetAssocValue(content, "playback"), "url", "")
-    return base
+    return BuildTemplateContext(extraContext, content)
+end function
+
+function BuildTemplateContext(requestContext as Dynamic, optional content as Dynamic) as Object
+    context = ApiManager_MergeAssoc(requestContext, {})
+
+    contentAA = GetInterface(content, "ifAssociativeArray")
+    if contentAA = invalid
+        return context
+    end if
+
+    for each key in content
+        value = content[key]
+        valueAA = GetInterface(value, "ifAssociativeArray")
+        valueArr = GetInterface(value, "ifArray")
+        if valueAA = invalid and valueArr = invalid and value <> invalid
+            context[key] = value
+        end if
+    end for
+
+    context["contentId"] = GetStringValue(content, "id", "")
+    context["contentTitle"] = GetStringValue(content, "title", "")
+    context["contentType"] = GetStringValue(content, "type", "")
+    context["contentThumb"] = GetStringValue(content, "thumb", "")
+
+    playback = GetAssocValue(content, "playback")
+    context["playbackUrl"] = GetStringValue(playback, "url", "")
+    context["playbackFormat"] = GetStringValue(playback, "format", "")
+
+    resolver = GetAssocValue(content, "resolver")
+    context["resolverUrl"] = GetStringValue(resolver, "url", "")
+    context["resolverId"] = GetStringValue(resolver, "id", "")
+    context["resolverStrategy"] = GetStringValue(resolver, "strategy", "")
+
+    drm = GetAssocValue(content, "drm")
+    context["drmType"] = GetStringValue(drm, "drmType", "")
+    context["licenseUrl"] = GetStringValue(drm, "licenseUrl", "")
+
+    meta = GetAssocValue(content, "meta")
+    context["feedKey"] = GetStringValue(meta, "feedKey", GetStringValue(content, "feedKey", ""))
+
+    raw = GetAssocValue(meta, "raw")
+    rawAA = GetInterface(raw, "ifAssociativeArray")
+    if rawAA <> invalid
+        context = ApiManager_MergeAssoc(context, raw)
+    end if
+
+    return context
+end function
+
+function ExtractItemsForOperation(operation as Object, payload as Dynamic, source as String, optional details as Dynamic) as Object
+    extract = GetAssocValue(operation, "EXTRACT")
+    itemsPath = GetStringValue(extract, "ITEMS_PATH", "")
+
+    itemsSource = payload
+    if itemsPath <> ""
+        itemsSource = ApiManager_GetByPath(payload, itemsPath)
+    end if
+
+    if itemsSource = invalid
+        errorDetails = ApiManager_MergeAssoc(details, { "itemsPath": itemsPath })
+        return ErrorResult("FEED_ITEMS_MISSING", false, source, errorDetails)
+    end if
+
+    if GetInterface(itemsSource, "ifArray") <> invalid
+        return ApiManager_ResultSuccess({ "items": itemsSource, "itemsPath": itemsPath }, source)
+    end if
+
+    return ApiManager_ResultSuccess({ "items": [itemsSource], "itemsPath": itemsPath }, source)
+end function
+
+function IsSupportedHttpMethod(method as String) as Boolean
+    if method = "GET" then return true
+    if method = "POST" then return true
+    if method = "PUT" then return true
+    if method = "PATCH" then return true
+    if method = "DELETE" then return true
+    return false
+end function
+
+function ToRequestBodyString(body as Dynamic) as String
+    if body = invalid then return ""
+    bodyType = LCase(type(body))
+    if bodyType = "string" or bodyType = "rostring"
+        return body.tostr()
+    end if
+    return FormatJson(body)
 end function
 
 function FindFeed(profile as Object, feedKey as String) as Dynamic
@@ -513,6 +616,18 @@ function GetNumberValue(obj as Dynamic, key as String, fallback as Integer) as I
     value = GetAssocValue(obj, key)
     if value = invalid then return fallback
     return Int(value)
+end function
+
+function GetBoolValue(obj as Dynamic, key as String, fallback as Boolean) as Boolean
+    value = GetAssocValue(obj, key)
+    if value = invalid then return fallback
+    if type(value) = "roBoolean" or type(value) = "Boolean"
+        return value
+    end if
+    txt = LCase(value.tostr())
+    if txt = "true" then return true
+    if txt = "false" then return false
+    return fallback
 end function
 
 function GetStringByPath(payload as Dynamic, path as String, fallback as String) as String

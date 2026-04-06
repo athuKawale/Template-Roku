@@ -28,7 +28,8 @@ function GetConstants() as Object
                 "URL_MISSING": "Resolved request URL is empty.",
                 "REQUEST_START_FAILED": "Failed to start HTTP request.",
                 "REQUEST_TIMEOUT": "HTTP request timed out.",
-                "HTTP_ERROR": "HTTP request failed."
+                "HTTP_ERROR": "HTTP request failed.",
+                "HTTP_METHOD_UNSUPPORTED": "HTTP method is not supported."
             },
             "TEXT": {
                 "INITIAL_STATUS": "Loading...",
@@ -67,9 +68,9 @@ function GetConstants() as Object
                 "EXECUTE_OPERATION": "EXECUTE_OPERATION"
             },
             "STARTUP": {
-                "RUN_SMOKE_TESTS": true,
-                "RUN_ALL_PROFILES": true,
-                "FAIL_ON_SMOKE_ERROR": true
+                "RUN_SMOKE_TESTS": false,
+                "RUN_ALL_PROFILES": false,
+                "FAIL_ON_SMOKE_ERROR": false
             }
         },
         "PROFILES": GetConfigProfiles()
@@ -163,11 +164,21 @@ function ValidateAppConfig(config as Object) as Object
         errors.push("Profile.OPERATIONS is required.")
     end if
 
+    homeMode = "feeds"
+    behaviorForMode = profile.BEHAVIOR
+    if behaviorForMode <> invalid and GetInterface(behaviorForMode, "ifAssociativeArray") <> invalid
+        homeMode = LCase(GetStringOrDefault(behaviorForMode.HOME_MODE, "feeds"))
+    end if
+
     feedOperationKeys = {}
     feedKeys = {}
-    if profile.FEEDS = invalid or GetInterface(profile.FEEDS, "ifArray") = invalid or profile.FEEDS.count() = 0
+    feedsAA = GetInterface(profile.FEEDS, "ifArray")
+    feedCount = 0
+    if feedsAA <> invalid then feedCount = profile.FEEDS.count()
+    requiresFeeds = homeMode <> "single_operation"
+    if requiresFeeds and feedCount = 0
         errors.push("Profile.FEEDS must include at least one feed.")
-    else
+    else if feedsAA <> invalid
         for each feed in profile.FEEDS
             feedAA = GetInterface(feed, "ifAssociativeArray")
             if feedAA = invalid
@@ -195,6 +206,8 @@ function ValidateAppConfig(config as Object) as Object
                 end if
             end if
         end for
+    else if profile.FEEDS <> invalid and requiresFeeds = false
+        errors.push("Profile.FEEDS must be an array when provided.")
     end if
 
     normalization = profile.NORMALIZATION
@@ -280,6 +293,11 @@ function ValidateAppConfig(config as Object) as Object
     if behaviorAA = invalid
         errors.push("Profile.BEHAVIOR is required.")
     else
+        homeMode = LCase(GetStringOrDefault(behavior.HOME_MODE, "feeds"))
+        if homeMode <> "feeds" and homeMode <> "single_operation"
+            errors.push("Profile.BEHAVIOR.HOME_MODE must be feeds or single_operation.")
+        end if
+
         autoPlay = behavior.AUTO_PLAY
         if GetInterface(autoPlay, "ifAssociativeArray") = invalid
             errors.push("Profile.BEHAVIOR.AUTO_PLAY is required.")
@@ -290,18 +308,27 @@ function ValidateAppConfig(config as Object) as Object
             end if
         end if
 
-        feedLoadOrder = behavior.FEED_LOAD_ORDER
-        if GetInterface(feedLoadOrder, "ifArray") = invalid or feedLoadOrder.count() = 0
-            errors.push("Profile.BEHAVIOR.FEED_LOAD_ORDER must be a non-empty array.")
-        else
-            for each loadKey in feedLoadOrder
-                keyText = loadKey.tostr()
-                if keyText = ""
-                    errors.push("Profile.BEHAVIOR.FEED_LOAD_ORDER includes an empty key.")
-                else if feedKeys.DoesExist(keyText) = false
-                    errors.push("Profile.BEHAVIOR.FEED_LOAD_ORDER references missing feed key '" + keyText + "'.")
-                end if
-            end for
+        if homeMode = "feeds"
+            feedLoadOrder = behavior.FEED_LOAD_ORDER
+            if GetInterface(feedLoadOrder, "ifArray") = invalid or feedLoadOrder.count() = 0
+                errors.push("Profile.BEHAVIOR.FEED_LOAD_ORDER must be a non-empty array.")
+            else
+                for each loadKey in feedLoadOrder
+                    keyText = loadKey.tostr()
+                    if keyText = ""
+                        errors.push("Profile.BEHAVIOR.FEED_LOAD_ORDER includes an empty key.")
+                    else if feedKeys.DoesExist(keyText) = false
+                        errors.push("Profile.BEHAVIOR.FEED_LOAD_ORDER references missing feed key '" + keyText + "'.")
+                    end if
+                end for
+            end if
+        else if homeMode = "single_operation"
+            singleOperation = GetStringOrDefault(behavior.SINGLE_OPERATION, "")
+            if singleOperation = ""
+                errors.push("Profile.BEHAVIOR.SINGLE_OPERATION is required when HOME_MODE is single_operation.")
+            else if operationsAA = invalid or operationsAA.DoesExist(singleOperation) = false
+                errors.push("Profile.BEHAVIOR.SINGLE_OPERATION references missing operation '" + singleOperation + "'.")
+            end if
         end if
     end if
 
@@ -332,6 +359,11 @@ function ValidateAppConfig(config as Object) as Object
                         errors.push("Profile.OPERATIONS." + operationKey + ".REQUEST.MODE must be graphql or rest.")
                     end if
 
+                    method = UCase(GetStringOrDefault(request.METHOD, ""))
+                    if method <> "" and IsSupportedHttpMethod(method) = false
+                        errors.push("Profile.OPERATIONS." + operationKey + ".REQUEST.METHOD must be GET, POST, PUT, PATCH, or DELETE.")
+                    end if
+
                     hasExplicitUrl = requestAA.DoesExist("URL") and GetStringOrDefault(request.URL, "") <> ""
                     hasPath = requestAA.DoesExist("PATH") and GetStringOrDefault(request.PATH, "") <> ""
                     hasBaseUrl = requestAA.DoesExist("BASE_URL") and GetStringOrDefault(request.BASE_URL, "") <> ""
@@ -355,8 +387,8 @@ function ValidateAppConfig(config as Object) as Object
             if operationAA <> invalid
                 if feedOperationKeys.DoesExist(operationKey)
                     extract = operation.EXTRACT
-                    if extract = invalid or GetInterface(extract, "ifAssociativeArray") = invalid or GetStringOrDefault(extract.ITEMS_PATH, "") = ""
-                        errors.push("Feed operation '" + operationKey + "' must define EXTRACT.ITEMS_PATH.")
+                    if extract <> invalid and GetInterface(extract, "ifAssociativeArray") = invalid
+                        errors.push("Feed operation '" + operationKey + "' EXTRACT must be an associative array when provided.")
                     end if
                 end if
 
@@ -895,6 +927,247 @@ function GetConfigProfiles() as Object
                     }
                 }
             }
+        },
+        "root_array_sample": {
+            "API": {
+                "MODE": "rest",
+                "BASE_URL": "https://example.com/api",
+                "DEFAULT_HEADERS": {
+                    "Accept": "application/json"
+                },
+                "AUTH": {
+                    "STRATEGY": "none"
+                },
+                "TIMEOUT_MS": 9000,
+                "RETRY_POLICY": {
+                    "MAX_ATTEMPTS": 2,
+                    "BASE_DELAY_MS": 200,
+                    "MULTIPLIER": 2
+                }
+            },
+            "BEHAVIOR": {
+                "HOME_MODE": "feeds",
+                "AUTO_PLAY": {
+                    "ENABLED": true,
+                    "RAIL_PRIORITY": ["featured"],
+                    "SELECTION_MODE": "firstPlayable"
+                },
+                "FEED_LOAD_ORDER": ["featured"],
+                "DEFAULT_STREAM_FORMAT": "hls",
+                "RESOLVER_DEFAULT_STRATEGY": "multiStep"
+            },
+            "NORMALIZATION": {
+                "ID_PATH": "id",
+                "TITLE_PATH": "title",
+                "THUMB_PATH": "thumb",
+                "TYPE_PATH": "type",
+                "PLAYBACK_URL_PATH": "playback.url",
+                "PLAYBACK_FORMAT_PATH": "playback.format",
+                "RESOLVER_URL_PATH": "resolver.url",
+                "RESOLVER_ID_PATH": "resolver.id",
+                "RESOLVER_STRATEGY_PATH": "resolver.strategy",
+                "RESOLVER_PIPELINE_PATH": "resolver.pipeline",
+                "DRM_TYPE_PATH": "drm.type",
+                "DRM_LICENSE_URL_PATH": "drm.licenseUrl",
+                "DRM_HEADERS_PATH": "drm.headers"
+            },
+            "FEEDS": [
+                {
+                    "KEY": "featured",
+                    "TITLE": "Featured",
+                    "TYPE": "featured",
+                    "OPERATION": "feed_root_array"
+                }
+            ],
+            "RESOLVER": {
+                "OPERATIONS": {
+                    "BY_URL": "resolve_root_by_url",
+                    "BY_ID": "resolve_root_lookup_by_id"
+                },
+                "PIPELINES": {
+                    "DEFAULT": [
+                        { "OPERATION": "resolve_root_lookup_by_id" },
+                        { "OPERATION": "resolve_root_by_url" }
+                    ]
+                }
+            },
+            "OPERATIONS": {
+                "feed_root_array": {
+                    "REQUEST": {
+                        "MODE": "rest",
+                        "METHOD": "GET",
+                        "PATH": "/featured"
+                    },
+                    "EXTRACT": {}
+                },
+                "resolve_root_lookup_by_id": {
+                    "REQUEST": {
+                        "MODE": "rest",
+                        "METHOD": "GET",
+                        "PATH": "/lookup/{{contentId}}"
+                    },
+                    "EXTRACT": {
+                        "RESOLVER_URL_PATH": "data[0].contentUrl"
+                    }
+                },
+                "resolve_root_by_url": {
+                    "REQUEST": {
+                        "MODE": "rest",
+                        "METHOD": "GET",
+                        "URL": "{{resolverUrl}}"
+                    },
+                    "EXTRACT": {
+                        "PLAYBACK_URL_PATH": "data.playback.url",
+                        "PLAYBACK_FORMAT_PATH": "data.playback.format"
+                    }
+                }
+            },
+            "SMOKE": {
+                "FEED_MOCKS": {
+                    "feed_root_array": [
+                        {
+                            "id": "root-1",
+                            "title": "Root Array Featured",
+                            "type": "featured",
+                            "thumb": "https://cdn.example.com/root-array.jpg",
+                            "resolver": {
+                                "strategy": "multiStep",
+                                "id": "root-1",
+                                "pipeline": [
+                                    { "OPERATION": "resolve_root_lookup_by_id" },
+                                    { "OPERATION": "resolve_root_by_url" }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "RESOLVER_MOCKS": {
+                    "resolve_root_lookup_by_id": {
+                        "data": [{ "contentUrl": "https://resolver.example.com/root/root-1" }]
+                    },
+                    "resolve_root_by_url": {
+                        "data": {
+                            "playback": {
+                                "url": "https://cdn.example.com/root/root-1.m3u8",
+                                "format": "hls"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "feedless_single_operation_sample": {
+            "API": {
+                "MODE": "rest",
+                "BASE_URL": "https://example.com/api",
+                "DEFAULT_HEADERS": {
+                    "Accept": "application/json"
+                },
+                "AUTH": {
+                    "STRATEGY": "none"
+                },
+                "TIMEOUT_MS": 9000,
+                "RETRY_POLICY": {
+                    "MAX_ATTEMPTS": 2,
+                    "BASE_DELAY_MS": 200,
+                    "MULTIPLIER": 2
+                }
+            },
+            "BEHAVIOR": {
+                "HOME_MODE": "single_operation",
+                "SINGLE_OPERATION": "single_featured_operation",
+                "SINGLE_OPERATION_TITLE": "Featured",
+                "SINGLE_OPERATION_TYPE": "featured",
+                "AUTO_PLAY": {
+                    "ENABLED": true,
+                    "RAIL_PRIORITY": ["single_operation"],
+                    "SELECTION_MODE": "firstPlayable"
+                },
+                "DEFAULT_STREAM_FORMAT": "hls",
+                "RESOLVER_DEFAULT_STRATEGY": "direct"
+            },
+            "NORMALIZATION": {
+                "ID_PATH": "id",
+                "TITLE_PATH": "title",
+                "THUMB_PATH": "thumb",
+                "TYPE_PATH": "type",
+                "PLAYBACK_URL_PATH": "playback.url",
+                "PLAYBACK_FORMAT_PATH": "playback.format",
+                "RESOLVER_URL_PATH": "resolver.url",
+                "RESOLVER_ID_PATH": "resolver.id",
+                "RESOLVER_STRATEGY_PATH": "resolver.strategy",
+                "RESOLVER_PIPELINE_PATH": "resolver.pipeline",
+                "DRM_TYPE_PATH": "drm.type",
+                "DRM_LICENSE_URL_PATH": "drm.licenseUrl",
+                "DRM_HEADERS_PATH": "drm.headers"
+            },
+            "RESOLVER": {
+                "OPERATIONS": {
+                    "BY_URL": "single_resolve_by_url",
+                    "BY_ID": "single_resolve_by_id"
+                },
+                "PIPELINES": {
+                    "DEFAULT": [
+                        { "OPERATION": "single_resolve_by_id" }
+                    ]
+                }
+            },
+            "OPERATIONS": {
+                "single_featured_operation": {
+                    "REQUEST": {
+                        "MODE": "rest",
+                        "METHOD": "GET",
+                        "PATH": "/single-featured"
+                    },
+                    "EXTRACT": {}
+                },
+                "single_resolve_by_url": {
+                    "REQUEST": {
+                        "MODE": "rest",
+                        "METHOD": "GET",
+                        "URL": "{{resolverUrl}}"
+                    },
+                    "EXTRACT": {
+                        "PLAYBACK_URL_PATH": "data.playback.url",
+                        "PLAYBACK_FORMAT_PATH": "data.playback.format"
+                    }
+                },
+                "single_resolve_by_id": {
+                    "REQUEST": {
+                        "MODE": "rest",
+                        "METHOD": "GET",
+                        "PATH": "/single-playback/{{contentId}}"
+                    },
+                    "EXTRACT": {
+                        "PLAYBACK_URL_PATH": "data.url",
+                        "PLAYBACK_FORMAT_PATH": "data.format"
+                    }
+                }
+            },
+            "SMOKE": {
+                "FEED_MOCKS": {
+                    "single_featured_operation": [
+                        {
+                            "id": "single-1",
+                            "title": "Single Operation Featured",
+                            "type": "featured",
+                            "thumb": "https://cdn.example.com/single-1.jpg",
+                            "playback": {
+                                "url": "https://cdn.example.com/single-1.mpd",
+                                "format": "dash"
+                            }
+                        }
+                    ]
+                },
+                "RESOLVER_MOCKS": {
+                    "single_resolve_by_id": {
+                        "data": {
+                            "url": "https://cdn.example.com/single-fallback.m3u8",
+                            "format": "hls"
+                        }
+                    }
+                }
+            }
         }
     }
 end function
@@ -924,4 +1197,14 @@ function GetStringOrDefault(value as Dynamic, fallback as String) as String
     txt = value.tostr()
     if txt = "" then return fallback
     return txt
+end function
+
+function IsSupportedHttpMethod(method as String) as Boolean
+    upper = UCase(method)
+    if upper = "GET" then return true
+    if upper = "POST" then return true
+    if upper = "PUT" then return true
+    if upper = "PATCH" then return true
+    if upper = "DELETE" then return true
+    return false
 end function

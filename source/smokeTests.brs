@@ -17,13 +17,34 @@ end function
 
 function RunProfileSmokeTest(profileName as String, profile as Object) as Object
     errors = []
-    feed = GetFirstFeed(profile)
-    if feed = invalid
-        errors.push("No feeds configured.")
-        return {
-            "success": false,
-            "errors": errors
+
+    homeMode = LCase(getStringByPath(profile, "BEHAVIOR.HOME_MODE", "feeds"))
+    feed = invalid
+    if homeMode = "single_operation"
+        singleOperation = getStringByPath(profile, "BEHAVIOR.SINGLE_OPERATION", "")
+        if singleOperation = ""
+            errors.push("Single-operation mode requires BEHAVIOR.SINGLE_OPERATION.")
+            return {
+                "success": false,
+                "errors": errors
+            }
+        end if
+
+        feed = {
+            "KEY": "single_operation",
+            "TITLE": getStringByPath(profile, "BEHAVIOR.SINGLE_OPERATION_TITLE", "Single Operation"),
+            "TYPE": getStringByPath(profile, "BEHAVIOR.SINGLE_OPERATION_TYPE", "content"),
+            "OPERATION": singleOperation
         }
+    else
+        feed = GetFirstFeed(profile)
+        if feed = invalid
+            errors.push("No feeds configured.")
+            return {
+                "success": false,
+                "errors": errors
+            }
+        end if
     end if
 
     feedOpKey = getStringValue(feed, "OPERATION", "")
@@ -47,8 +68,19 @@ function RunProfileSmokeTest(profileName as String, profile as Object) as Object
 
     itemsPath = getStringByPath(feedOp, "EXTRACT.ITEMS_PATH", "")
     items = smokeGetByPath(feedMock, itemsPath)
-    if GetInterface(items, "ifArray") = invalid or items.count() = 0
+    if items = invalid
         errors.push("Items extraction failed at path: " + itemsPath)
+        return {
+            "success": false,
+            "errors": errors
+        }
+    end if
+
+    if GetInterface(items, "ifArray") = invalid
+        items = [items]
+    end if
+    if items.count() = 0
+        errors.push("Items extraction returned an empty array.")
         return {
             "success": false,
             "errors": errors

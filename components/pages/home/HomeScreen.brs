@@ -8,6 +8,7 @@ sub init()
     m.feedQueue = []
     m.feedErrors = []
     m.pendingPlaybackItem = invalid
+    m.singleOperationExecuted = false
 
     setStatus(getText("INITIAL_STATUS"))
 
@@ -36,6 +37,10 @@ end sub
 
 sub loadNextFeed()
     if m.feedQueue.count() = 0
+        if shouldRunSingleOperation()
+            runSingleOperationMode()
+            return
+        end if
         onAllFeedsLoaded()
         return
     end if
@@ -73,6 +78,58 @@ sub onFeedResponse(event as Object)
     end if
 
     loadNextFeed()
+end sub
+
+sub runSingleOperationMode()
+    m.singleOperationExecuted = true
+
+    behavior = GetValueOrDefault(m.profile, "BEHAVIOR", {})
+    operationKey = GetStringValue(behavior, "SINGLE_OPERATION", "")
+    if operationKey = ""
+        m.feedErrors.push(getText("NO_FEEDS"))
+        onAllFeedsLoaded()
+        return
+    end if
+
+    setStatus(getText("LOADING_FEED_PREFIX") + operationKey + "...")
+
+    request = {
+        "type": getRequestType("EXECUTE_OPERATION", "EXECUTE_OPERATION"),
+        "operationKey": operationKey,
+        "normalizeItems": true,
+        "feedKey": "single_operation",
+        "feedTitle": GetStringValue(behavior, "SINGLE_OPERATION_TITLE", "Single Operation"),
+        "feedType": GetStringValue(behavior, "SINGLE_OPERATION_TYPE", "content"),
+        "context": GetValueOrDefault(behavior, "SINGLE_OPERATION_CONTEXT", invalid)
+    }
+    m.activeTask = TaskOrchestrator_RunTask("ApiTask", { "request": request }, "onSingleOperationResponse")
+end sub
+
+sub onSingleOperationResponse(event as Object)
+    response = event.getData()
+    if response = invalid
+        m.feedErrors.push(getText("FEED_RESPONSE_INVALID"))
+        onAllFeedsLoaded()
+        return
+    end if
+
+    if response.success = true
+        rail = response.data
+        if rail <> invalid
+            feedKey = GetStringValue(rail, "feedKey", "single_operation")
+            m.rails[feedKey] = {
+                "feedKey": feedKey,
+                "feedTitle": GetStringValue(rail, "feedTitle", "Single Operation"),
+                "feedType": GetStringValue(rail, "feedType", "content"),
+                "items": GetValueOrDefault(rail, "items", [])
+            }
+        end if
+        m.top.railsData = m.rails
+    else
+        m.feedErrors.push(getErrorDisplay(response, "FEED_LOAD_FAILED"))
+    end if
+
+    onAllFeedsLoaded()
 end sub
 
 sub onAllFeedsLoaded()
@@ -196,6 +253,10 @@ sub beginPlayback(item as Object)
 end sub
 
 function getFeedLoadOrder(feeds as Object) as Object
+    if isSingleOperationMode()
+        return []
+    end if
+
     behavior = GetValueOrDefault(m.profile, "BEHAVIOR", {})
     orderedKeys = GetValueOrDefault(behavior, "FEED_LOAD_ORDER", invalid)
     if GetInterface(orderedKeys, "ifArray") = invalid or orderedKeys.count() = 0
@@ -224,6 +285,21 @@ function getFeedLoadOrder(feeds as Object) as Object
     end for
 
     return ordered
+end function
+
+function isSingleOperationMode() as Boolean
+    behavior = GetValueOrDefault(m.profile, "BEHAVIOR", {})
+    mode = LCase(GetStringValue(behavior, "HOME_MODE", "feeds"))
+    return mode = "single_operation"
+end function
+
+function shouldRunSingleOperation() as Boolean
+    if m.singleOperationExecuted then return false
+    if isSingleOperationMode() = false then return false
+
+    behavior = GetValueOrDefault(m.profile, "BEHAVIOR", {})
+    operationKey = GetStringValue(behavior, "SINGLE_OPERATION", "")
+    return operationKey <> ""
 end function
 
 function getRequestType(key as String, fallback as String) as String
