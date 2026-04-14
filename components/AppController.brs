@@ -8,21 +8,21 @@ end sub
 
 sub showHomeScreen()
     homeScreen = CreateObject("roSGNode", "HomeScreen")
-    homeScreen.observeField("selectedChannel", "onChannelSelected")
+    homeScreen.observeFieldScoped("selectedItem", "onItemSelected")
     pushScreen(homeScreen)
 end sub
 
-sub onChannelSelected(event as Object)
-    channel = event.getData()
+sub onItemSelected(event as Object)
+    item = event.getData()
     playerScreen = CreateObject("roSGNode", "PlayerScreen")
-    playerScreen.channelData = channel
+    playerScreen.itemData = item
     pushScreen(playerScreen)
 end sub
 
 ' --- Navigation Engine ---
 
 sub pushScreen(newScreen as Object)
-    if newScreen = invalid return
+    if newScreen = invalid then return
     
     ' Hide current screen if any
     if m.screenStack.count() > 0
@@ -37,7 +37,7 @@ sub pushScreen(newScreen as Object)
 end sub
 
 sub popScreen()
-    if m.screenStack.count() <= 1 return ' Don't pop the last screen (Home)
+    if m.screenStack.count() <= 1 then return ' Don't pop the last screen (Home)
     
     topScreen = m.screenStack.pop()
     m.screenContainer.removeChild(topScreen)
@@ -60,10 +60,10 @@ end sub
 sub onLaunchArgsChange()
     args = m.top.launchArgs
     ? "AppController: Received Launch Args: "; args
-    ' Handle deep linking logic here (e.g., if args.contentId exists)
+    ' TEMPLATE: Implement deep-link routing here (map args to a screen).
     if args <> invalid and args.contentId <> invalid
         ? "AppController: Deep linking to contentId: "; args.contentId
-        ' Example: auto-play a specific channel or navigate to player
+        ' Example: push PlayerScreen with itemData that matches contentId
     end if
 end sub
 

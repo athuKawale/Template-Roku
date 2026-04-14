@@ -1,12 +1,17 @@
 function GetConstants() as Object
     return {
         "API": {
-            "BASE_URL": "https://prd-ctv-gql.nw18.com/",
-            "CHANNEL_LIST_QUERY": "query CtvChannelList($apiRequest: CtvChannelListinput) { ctvChannelList(apiRequest: $apiRequest) { data { language channel_name streaming_url } } }",
-            "CHANNEL_LIST_VARIABLES": "{""apiRequest"": {""langName"": ""en-in""}}"
+            ' TEMPLATE: Replace BASE_URL with your project's actual API base.
+            "BASE_URL": "https://your-api-base-url.com/",
+            "TIMEOUT_MS": 10000
+            ' TEMPLATE: Add endpoint constants here based on your API docs.
+            ' REST example: "HOME": "?section=home"
+            ' GraphQL: keep query strings here if your API is GraphQL-based
         },
         "COLORS": {
-            "PRIMARY": "#EB1D24",
+            ' TEMPLATE: Replace with your brand colors (hex or Roku RGBA strings).
+            ' If unsure, leave as-is and update later during UI styling.
+            "PRIMARY": "#FF0000",
             "BACKGROUND": "#000000",
             "TEXT": "#FFFFFF"
         },

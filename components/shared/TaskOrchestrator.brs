@@ -3,7 +3,7 @@
 ' Spawns a task, sets its fields, and observes the response
 function TaskOrchestrator_RunTask(taskName as String, fields as Object, callback as String) as Object
     task = CreateObject("roSGNode", taskName)
-    if task = invalid return invalid
+    if task = invalid then return invalid
     
     ' Set input fields
     for each key in fields
@@ -11,7 +11,7 @@ function TaskOrchestrator_RunTask(taskName as String, fields as Object, callback
     end for
     
     ' Observe response (standard field name "response")
-    task.observeField("response", callback)
+    task.observeFieldScoped("response", callback)
     task.control = "RUN"
     
     return task
