@@ -4,66 +4,59 @@ end sub
 
 sub runRequest()
     request = m.top.request
-    if request = invalid return
+    if request = invalid then return
 
     constants = GetConstants()
     ut = ApiManager_CreateUrlTransfer("")
-    
-    if request.type = "CHANNEL_LIST"
-        ut.SetUrl(constants.API.BASE_URL)
-        ut.AddHeader("Content-Type", "application/json")
-        
-        port = CreateObject("roMessagePort")
-        ut.SetPort(port)
-        
-        payload = {
-            query: constants.API.CHANNEL_LIST_QUERY,
-            variables: constants.API.CHANNEL_LIST_VARIABLES
-        }
-        
-        if ut.AsyncPostFromString(FormatJson(payload))
-            msg = wait(10000, port)
-            if type(msg) = "roUrlEvent"
-                if msg.getResponseCode() = 200
-                    json = ApiManager_ParseResponse(msg.GetString())
-                    if json <> invalid and json.data <> invalid and json.data.ctvChannelList <> invalid
-                        m.top.response = { "success": true, "data": json.data.ctvChannelList.data }
-                    else
-                        m.top.response = { "success": false, "error": "Invalid JSON structure" }
-                    end if
-                else
-                    m.top.response = { "success": false, "error": "API Error: " + msg.getResponseCode().tostr() }
-                end if
-            else
-                m.top.response = { "success": false, "error": "API Timeout" }
-            end if
-        else
-            m.top.response = { "success": false, "error": "Failed to start API request" }
-        end if
+    ut.InitClientCertificates()
+    ut.RetainBodyOnError(true)
 
-    else if request.type = "GET_LIVE_URL"
-        port = CreateObject("roMessagePort")
-        ut.SetPort(port)
-        ut.SetUrl(request.url)
-        
-        if ut.AsyncGetToString()
-            msg = wait(10000, port)
-            if type(msg) = "roUrlEvent"
-                if msg.getResponseCode() = 200
-                    json = ApiManager_ParseResponse(msg.GetString())
-                    if json <> invalid and json.hls <> invalid
-                        m.top.response = { "success": true, "url": json.hls }
-                    else
-                        m.top.response = { "success": false, "error": "Invalid Live URL JSON" }
-                    end if
+    port = CreateObject("roMessagePort")
+    ut.SetPort(port)
+
+    ' TEMPLATE: Choose the protocol based on your API docs.
+    '
+    ' REST (GET with query params):
+    '   url = constants.API.BASE_URL + "?section=" + request.section
+    '   if request.params <> invalid
+    '       for each key in request.params
+    '           url = url + "&" + key + "=" + request.params[key]
+    '       end for
+    '   end if
+    '   ut.SetUrl(url)
+    '   ut.AddHeader("Accept", "application/json")
+    '   success = ut.AsyncGetToString()
+    '
+    ' GraphQL (POST with query body):
+    '   ut.SetUrl(constants.API.BASE_URL)
+    '   ut.AddHeader("Content-Type", "application/json")
+    '   payload = { query: request.query, variables: request.variables }
+    '   success = ut.AsyncPostFromString(FormatJson(payload))
+    '
+    ' Default: REST GET pattern (replace if your API uses GraphQL)
+    url = request.url
+    if url = invalid or url = "" then url = constants.API.BASE_URL
+    ut.SetUrl(url)
+    ut.AddHeader("Accept", "application/json")
+
+    if ut.AsyncGetToString()
+        msg = wait(constants.API.TIMEOUT_MS, port)
+        if type(msg) = "roUrlEvent"
+            statusCode = msg.getResponseCode()
+            if statusCode >= 200 and statusCode < 300
+                json = ApiManager_ParseResponse(msg.GetString())
+                if json <> invalid
+                    m.top.response = { "success": true, "data": json }
                 else
-                    m.top.response = { "success": false, "error": "Live URL Error: " + msg.getResponseCode().tostr() }
+                    m.top.response = { "success": false, "error": "Invalid JSON structure" }
                 end if
             else
-                m.top.response = { "success": false, "error": "Live URL Timeout" }
+                m.top.response = { "success": false, "error": "API Error: " + statusCode.tostr() }
             end if
         else
-            m.top.response = { "success": false, "error": "Failed to start Live URL request" }
+            m.top.response = { "success": false, "error": "API Timeout" }
         end if
+    else
+        m.top.response = { "success": false, "error": "Failed to start API request" }
     end if
 end sub

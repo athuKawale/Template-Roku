@@ -4,7 +4,7 @@
     <script type="text/brightscript" uri="pkg:/source/constants.brs" />
     <script type="text/brightscript" uri="pkg:/components/api/ApiTask.brs" />
     <interface>
-        <!-- INPUT: Request Type (CHANNEL_LIST or GET_LIVE_URL) -->
+        <!-- INPUT: Request parameters (type, url, params, etc.) -->
         <field id="request" type="assocarray" />
         <!-- OUTPUT: Result data -->
         <field id="response" type="assocarray" />
